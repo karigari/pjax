@@ -1,10 +1,10 @@
 # Pjax
 
-[![Build Status](http://img.shields.io/travis/MoOx/pjax.svg)](https://travis-ci.org/MoOx/pjax).
+[![Build Status](https://img.shields.io/travis/MoOx/pjax.svg)](https://travis-ci.org/MoOx/pjax).
 
 > Easily enable fast AJAX navigation on any website (using pushState() + XHR)
 
-Pjax is ~~a jQuery plugin~~ **a standalone JavaScript module** that uses
+Pjax is **a standalone JavaScript module** that uses
 AJAX (XmlHttpRequest) and
 [pushState()](https://developer.mozilla.org/en-US/docs/Web/Guide/API/DOM/Manipulating_the_browser_history)
 to deliver a fast browsing experience.
@@ -14,6 +14,8 @@ _It allows you to completely transform the user experience of standard websites
 especially for users with low bandwidth connection._
 
 **No more full page reloads. No more multiple HTTP requests.**
+
+_Pjax does not rely on other libraries, like jQuery or similar. It is written entirely in vanilla JS._
 
 ## Installation
 
@@ -30,10 +32,6 @@ especially for users with low bandwidth connection._
   ```html
   <script src="https://cdn.jsdelivr.net/npm/pjax@VERSION/pjax.min.js"></script>
   ```
-
-## No dependencies
-
-_Pjax does not rely on other libraries, like jQuery or similar. It is written entirely in vanilla JS._
 
 ## How Pjax works
 
@@ -99,7 +97,7 @@ So we want to update `[".my-Header", ".my-Content", ".my-Sidebar"]`, **without r
 We do this by telling Pjax to listen on `a` tags and use CSS selectors defined above (without forgetting minimal meta):
 
 ``` javascript
-new Pjax({ selectors: ["title", ".my-Header", ".my-Content", ".my-Sidebar"] })
+var pjax = new Pjax({ selectors: ["title", ".my-Header", ".my-Content", ".my-Sidebar"] })
 ```
 
 Now, when someone in a Pjax-compatible browser clicks "blah", the content of all selectors will be replaced with the one found in the "blah" content.
@@ -124,12 +122,16 @@ To see if Pjax is actually supported by your browser, use `Pjax.isSupported()`.
 
 ## Usage
 
-### `new Pjax()`
+### Methods
 
-Let's talk more about the most basic way to get started:
+#### `new Pjax()`
+
+Let's talk more about the most basic way to get started.
+
+When instantiating `Pjax`, you can pass options in to the constructor as an object:
 
 ```js
-new Pjax({
+var pjax = new Pjax({
   elements: "a", // default is "a[href], form[action]"
   selectors: ["title", ".my-Header", ".my-Content", ".my-Sidebar"]
 })
@@ -145,7 +147,7 @@ In that case, you can do two different things:
 
 ```js
 // use case 1
-new Pjax({ elements: "a.js-Pjax" })
+var pjax = new Pjax({ elements: "a.js-Pjax" })
 
 
 // use case 2
@@ -153,12 +155,52 @@ Pjax.prototype.getElements = function() {
   return document.getElementsByClassName(".js-Pjax")
 }
 
-new Pjax({})
+var pjax = new Pjax()
 ```
 
-When instantiating a `Pjax` object, you need to pass all options as an object:
+#### `loadUrl(href, [options])`
 
-#### Options
+With this method, you can manually trigger loading of a URL:
+
+```js
+var pjax = new Pjax()
+
+// use case 1 (without options override)
+pjax.loadUrl("/your-url")
+
+// use case 2 (with options override)
+pjax.loadUrl("/your-other-url", {timeout: 10})
+```
+
+#### `handleResponse(responseText, request, href)`
+
+This method takes the raw response, processes the URL, then calls `pjax.loadContent()` to actually load it into the DOM.
+
+It is passed the following arguments:
+
+* **responseText** (string): This is the raw response text. This is equivalent to `request.responseText`.
+* **request** (XMLHttpRequest): This is the XHR object.
+* **href** (string): This is the URL that was passed to `loadUrl()`.
+
+You can override this if you want to process the data before, or instead of, it being loaded into the DOM.
+
+For example, if you want to check for a JSON response, you could do the following:
+
+```js
+var pjax = new Pjax();
+
+pjax._handleResponse = pjax.handleResponse;
+
+pjax.handleResponse = function(responseText, request, href) {
+  if (request.responseText.match("<html")) {
+    pjax._handleResponse(responseText, request, href);
+  } else {
+    // handle response here
+  }
+}
+```
+
+### Options
 
 ##### `elements` (String, default: `"a[href], form[action]"`)
 
@@ -197,7 +239,7 @@ Keys should be one of the defined selectors.
 Examples:
 
 ```js
-new Pjax({
+var pjax = new Pjax({
   selectors: ["title", ".Navbar", ".js-Pjax"],
   switches: {
     // "title": Pjax.switches.outerHTML // default behavior
@@ -218,6 +260,7 @@ Callbacks are bound to Pjax instance itself to allow you to reuse it (ex: `this.
 
 - `Pjax.switches.outerHTML`: default behavior, replace elements using outerHTML
 - `Pjax.switches.innerHTML`: replace elements using innerHTML and copy className too
+- `Pjax.switches.replaceNode`: replace elements using replaceChild
 - `Pjax.switches.sideBySide`: smart replacement that allows you to have both elements in the same parent when you want to use CSS animations. Old elements are removed when all children have been fully animated ([animationEnd](http://www.w3.org/TR/css3-animations/#animationend) event triggered)
 
 ###### Create a switch callback
@@ -243,7 +286,7 @@ This is very convenient when you use something like [Animate.css](https://github
 with or without [WOW.js](https://github.com/matthieua/WOW).
 
 ```js
-new Pjax({
+var pjax = new Pjax({
   selectors: ["title", ".js-Pjax"],
   switches: {
     ".js-Pjax": Pjax.switches.sideBySide
@@ -369,7 +412,7 @@ However, there is almost no use case where you would want to do that.
 
 Internally, this option is used when a `popstate` event triggers Pjax (to not `pushState()` again).
 
-##### `analytics` (Function|Boolean, default: a function that pushes `_gaq` `_trackPageview` or sends `ga` `pageview`
+##### `analytics` (Function | Boolean, default: a function that pushes `_gaq` `_trackPageview` or sends `ga` `pageview`
 
 Function that allows you to add behavior for analytics. By default it tries to track
 a pageview with Google Analytics (if it exists on the page).
@@ -377,9 +420,13 @@ It's called every time a page is switched, even for history navigation.
 
 Set to `false` to disable this behavior.
 
-##### `scrollTo` (Integer, default: `0`)
+##### `scrollTo` (Integer | \[Integer, Integer\] | False, default: `0`)
 
-Value (in px from the top of the page) to scroll to when a page is switched.
+When set to an integer, this is the value (in px from the top of the page) to scroll to when a page is switched.
+
+When set to an array of 2 integers (\[x, y\]), this is the value to scroll both horizontally and vertically.
+
+Set this to `false` to disable scrolling, which will mean the page will stay in that same position it was before loading the new elements.
 
 ##### `scrollRestoration` (Boolean, default: `true`)
 
@@ -398,9 +445,13 @@ Enables verbose mode. Useful to debug page layout differences.
 
 When set to true, clicking on a link that points to the current URL will trigger a full page reload.
 
-The default is `false`, so clicking on such a link will do nothing. 
-If you want to add some custom behavior, add a click listener to the link, 
+When set to `false`, clicking on such a link will cause Pjax to load the 
+current page like any page.
+If you want to add some custom behavior, add a click listener to the link,
 and set `preventDefault` to true, to prevent Pjax from receiving the event.
+
+Note: this must be done before Pjax is instantiated. Otherwise, Pjax's 
+event handler will be called first, and preventDefault() won't be called yet.
 
 Here is some sample code:
 
@@ -418,10 +469,12 @@ Here is some sample code:
       }
     })
   }
+  
+  var pjax = new Pjax()
 ```
 
-(Note that if `cacheBust` is set to true, the code that checks if the href 
-is the same as the current page's URL will not work, due to the query string 
+(Note that if `cacheBust` is set to true, the code that checks if the href
+is the same as the current page's URL will not work, due to the query string
 appended to force a cache bust).
 
 ##### `timeout` (Integer, default: `0`)
@@ -437,7 +490,7 @@ All events are fired from the _document_, not the link that was clicked.
 * `pjax:send` - Fired after the Pjax request begins.
 * `pjax:complete` - Fired after the Pjax request finishes.
 * `pjax:success` - Fired after the Pjax request succeeds.
-* `pjax:error` - Fired after the Pjax request fails.
+* `pjax:error` - Fired after the Pjax request fails. The request object will be passed along as `event.options.request`.
 
 `send` and `complete` are a good pair of events to use if you are implementing a loading indicator (eg: [topbar](http://buunguyen.github.io/topbar/))
 
@@ -445,6 +498,36 @@ All events are fired from the _document_, not the link that was clicked.
 document.addEventListener('pjax:send', topbar.show)
 document.addEventListener('pjax:complete', topbar.hide)
 ```
+
+### HTTP Headers
+
+Pjax uses several custom headers when it makes and receives HTTP requests. 
+If the requests are going to your server, you can use those headers for
+some meta information about the response.
+
+##### Request headers
+
+Pjax sends the following headers with every request:
+
+* `X-Requested-With: "XMLHttpRequest"`
+* `X-PJAX: "true"`
+* `X-PJAX-Selectors`: A serialized JSON array of selectors, taken from 
+`options.selectors`. You can use this to send back only the elements that 
+Pjax will use to switch, instead of sending the whole page. Use `JSON.parse()` 
+server-side to deserialize it back to an array.
+
+##### Response headers
+
+Pjax looks for the following headers on the response:
+
+* `X-PJAX-URL` or `X-XHR-Redirected-To`
+
+  Pjax first checks the `responseURL` property on the XHR object to 
+  check if the request was redirected by the server. Most browsers support 
+  this, but not all. To ensure Pjax will be able to tell when the request 
+  is redirected, you can include one of these headers with the response, 
+  set to the final URL.
+
 
 #### Note about DOM ready state
 
@@ -459,7 +542,7 @@ function whenDOMReady() {
 
 whenDOMReady()
 
-new Pjax()
+var pjax = new Pjax()
 
 document.addEventListener("pjax:success", whenDOMReady)
 ```
@@ -482,7 +565,7 @@ function whenContainerReady() {
 }
 whenContainerReady()
 
-new Pjax()
+var pjax = new Pjax()
 
 document.addEventListener("pjax:success", whenContainerReady)
 ```
@@ -562,7 +645,7 @@ Clone this repository and run `npm run example`, which will open the example app
 
 * ⇄ Pull requests and ★ Stars are always welcome.
 * For bugs and feature requests, please create an issue.
-* Pull requests must be accompanied by passing automated tests (`npm test`).
+* Pull requests must be accompanied by passing automated tests (`npm test`). If the API is changed, please update the Typescript definitions as well (`pjax.d.ts`).
 
 ## [CHANGELOG](CHANGELOG.md)
 

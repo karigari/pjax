@@ -1,13 +1,15 @@
-var clone = require("./lib/clone.js")
 var executeScripts = require("./lib/execute-scripts.js")
 var forEachEls = require("./lib/foreach-els.js")
+var parseOptions = require("./lib/parse-options.js")
 var switches = require("./lib/switches")
 var newUid = require("./lib/uniqueid.js")
 
 var on = require("./lib/events/on.js")
 var trigger = require("./lib/events/trigger.js")
 
+var clone = require("./lib/util/clone.js")
 var contains = require("./lib/util/contains.js")
+var extend = require("./lib/util/extend.js")
 var noop = require("./lib/util/noop")
 
 var Pjax = function(options) {
@@ -17,8 +19,8 @@ var Pjax = function(options) {
       options: null
     }
 
-    var parseOptions = require("./lib/proto/parse-options.js")
-    parseOptions.call(this,options)
+
+    this.options = parseOptions(options)
     this.log("Pjax options", this.options)
 
     if (this.options.scrollRestoration && "scrollRestoration" in history) {
@@ -35,7 +37,6 @@ var Pjax = function(options) {
         opt.url = st.state.url
         opt.title = st.state.title
         opt.history = false
-        opt.requestOptions = {}
         opt.scrollPos = st.state.scrollPos
         if (st.state.uid < this.lastUid) {
           opt.backward = true
@@ -128,7 +129,7 @@ Pjax.prototype = {
     this.log("load content", tmpEl.documentElement.attributes, tmpEl.documentElement.innerHTML.length)
 
     // Clear out any focused controls before inserting new page contents.
-    if (document.activeElement && contains(this.options.selectors, document.activeElement)) {
+    if (document.activeElement && contains(document, this.options.selectors, document.activeElement)) {
       try {
         document.activeElement.blur()
       } catch (e) { }
@@ -141,7 +142,13 @@ Pjax.prototype = {
 
   doRequest: require("./lib/send-request.js"),
 
+  handleResponse: require("./lib/proto/handle-response.js"),
+
   loadUrl: function(href, options) {
+    options = typeof options === "object" ?
+      extend({}, this.options, options) :
+      clone(this.options)
+
     this.log("load href", href, options)
 
     // Abort any previous request
@@ -150,67 +157,7 @@ Pjax.prototype = {
     trigger(document, "pjax:send", options)
 
     // Do the request
-    options.requestOptions.timeout = this.options.timeout
-    this.request = this.doRequest(href, options.requestOptions, function(html, request) {
-      // Fail if unable to load HTML via AJAX
-      if (html === false) {
-        trigger(document, "pjax:complete pjax:error", options)
-
-        return
-      }
-
-      // push scroll position to history
-      var currentState = window.history.state || {}
-      window.history.replaceState({
-          url: currentState.url || window.location.href,
-          title: currentState.title || document.title,
-          uid: currentState.uid || newUid(),
-          scrollPos: [document.documentElement.scrollLeft || document.body.scrollLeft,
-            document.documentElement.scrollTop || document.body.scrollTop]
-        },
-        document.title, window.location)
-
-      var oldHref = href
-      if (request.responseURL) {
-        if (href !== request.responseURL) {
-          href = request.responseURL
-        }
-      }
-      else if (request.getResponseHeader("X-PJAX-URL")) {
-        href = request.getResponseHeader("X-PJAX-URL")
-      }
-      else if (request.getResponseHeader("X-XHR-Redirected-To")) {
-        href = request.getResponseHeader("X-XHR-Redirected-To")
-      }
-
-      // Add back the hash if it was removed
-      var a = document.createElement("a")
-      a.href = oldHref
-      var oldHash = a.hash
-      a.href = href
-      if (oldHash && !a.hash) {
-        a.hash = oldHash
-        href = a.href
-      }
-
-      this.state.href = href
-      this.state.options = clone(options)
-
-      try {
-        this.loadContent(html, options)
-      }
-      catch (e) {
-        if (!this.options.debug) {
-          if (console && console.error) {
-            console.error("Pjax switch fail: ", e)
-          }
-          return this.latestChance(href)
-        }
-        else {
-          throw e
-        }
-      }
-    }.bind(this))
+    this.request = this.doRequest(href, options, this.handleResponse.bind(this))
   },
 
   afterAllSwitches: function() {
